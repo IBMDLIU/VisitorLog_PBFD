@@ -21,22 +21,6 @@ namespace VisitorLog_PBFD.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("VisitorLog_PBFD.Models.ContinentRoot", b =>
-                {
-                    b.Property<int>("PersonId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Continent")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.HasKey("PersonId");
-
-                    b.ToTable("ContinentRoots");
-                });
-
             modelBuilder.Entity("VisitorLog_PBFD.Models.Location", b =>
                 {
                     b.Property<int>("Id")
@@ -166,17 +150,7 @@ namespace VisitorLog_PBFD.Migrations
                     b.ToTable("Persons");
                 });
 
-            modelBuilder.Entity("VisitorLog_PBFD.Models.SchemaColumn", b =>
-                {
-                    b.Property<string>("COLUMN_NAME")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("COLUMN_NAME");
-
-                    b.ToTable("SchemaColumns");
-                });
-
-            modelBuilder.Entity("VisitorLog_PBFD.Models.Summary", b =>
+            modelBuilder.Entity("VisitorLog_PBFD.Models.Report", b =>
                 {
                     b.Property<string>("CityName")
                         .HasColumnType("nvarchar(max)");
@@ -197,25 +171,17 @@ namespace VisitorLog_PBFD.Migrations
                     b.Property<string>("StateName")
                         .HasColumnType("nvarchar(max)");
 
-                    b.ToTable((string)null);
-
-                    b.ToView("vw_Summary", (string)null);
+                    b.ToTable("Reports");
                 });
 
-            modelBuilder.Entity("VisitorLog_PBFD.Models.ContinentRoot", b =>
+            modelBuilder.Entity("VisitorLog_PBFD.Models.SchemaColumn", b =>
                 {
-                    b.HasOne("VisitorLog_PBFD.Models.Person", "Person")
-                        .WithOne("ContinentRoot")
-                        .HasForeignKey("VisitorLog_PBFD.Models.ContinentRoot", "PersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<string>("COLUMN_NAME")
+                        .HasColumnType("nvarchar(450)");
 
-                    b.Navigation("Person");
-                });
+                    b.HasKey("COLUMN_NAME");
 
-            modelBuilder.Entity("VisitorLog_PBFD.Models.Person", b =>
-                {
-                    b.Navigation("ContinentRoot");
+                    b.ToTable("SchemaColumns");
                 });
 #pragma warning restore 612, 618
         }

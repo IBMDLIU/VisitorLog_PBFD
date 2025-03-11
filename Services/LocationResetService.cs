@@ -79,7 +79,7 @@ namespace VisitorLog_PBFD.Services
 
             var columns = new List<string>();
 
-            // Check for columns with value greater than 0
+            // Check for columns with not null value
             foreach (var columnName in columnNames)
             {
                 string checkQuery = $"SELECT COUNT(*) FROM [{tableName}] WHERE [{columnName}] is not null";

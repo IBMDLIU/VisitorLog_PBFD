@@ -59,6 +59,21 @@ namespace VisitorLog_PBFD.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Reports",
+                columns: table => new
+                {
+                    PersonName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ContinentName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CountryName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StateName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CountyName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CityName = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SchemaColumns",
                 columns: table => new
                 {
@@ -67,25 +82,6 @@ namespace VisitorLog_PBFD.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_SchemaColumns", x => x.COLUMN_NAME);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ContinentRoots",
-                columns: table => new
-                {
-                    PersonId = table.Column<int>(type: "int", nullable: false),
-                    Continent = table.Column<int>(type: "int", nullable: false),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ContinentRoots", x => x.PersonId);
-                    table.ForeignKey(
-                        name: "FK_ContinentRoots_Persons_PersonId",
-                        column: x => x.PersonId,
-                        principalTable: "Persons",
-                        principalColumn: "PersonId",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.InsertData(
@@ -111,19 +107,19 @@ namespace VisitorLog_PBFD.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "ContinentRoots");
-
-            migrationBuilder.DropTable(
                 name: "Locations");
 
             migrationBuilder.DropTable(
                 name: "NameTypes");
 
             migrationBuilder.DropTable(
-                name: "SchemaColumns");
+                name: "Persons");
 
             migrationBuilder.DropTable(
-                name: "Persons");
+                name: "Reports");
+
+            migrationBuilder.DropTable(
+                name: "SchemaColumns");
         }
     }
 }

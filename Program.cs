@@ -89,7 +89,7 @@ namespace ContinentsApp
         {
             foreach (var location in locations)
             {
-                if(location.Level>4)
+                if(location.Level>5)
                     continue;
 
                 var parentChildren = locations.Where(x => x.ParentId == location.Id).ToList();

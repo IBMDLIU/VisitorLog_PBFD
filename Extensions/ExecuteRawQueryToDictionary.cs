@@ -50,7 +50,7 @@ namespace VisitorLog_PBFD.Extensions
         /// <summary>
         /// Executes a raw SQL query asynchronously and maps the result to a list of objects of type T.
         /// </summary>
-        public static async Task<List<T>> ExecuteRawQueryToListAsync<T>(this DbContext context, string query, Dictionary<string, object> parameters)
+        public static async Task<List<T>> ExecuteRawQueryToListAsync<T>(this DbContext context, string query, Dictionary<string, object>? parameters)
         {
             var list = new List<T>();
 
@@ -59,6 +59,7 @@ namespace VisitorLog_PBFD.Extensions
             command.CommandText = query;
 
             // Add parameters
+            if(parameters!=null)
             foreach (var parameter in parameters)
             {
                 var dbParameter = command.CreateParameter();

@@ -8,7 +8,6 @@ namespace VisitorLog_PBFD.Data // Ensure this namespace matches your project's f
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
         public DbSet<Person> Persons { get; set; }
-        public DbSet<ContinentRoot> ContinentRoots { get; set; }
         public DbSet<NameType> NameTypes { get; set; }
         public DbSet<Report> Reports { get; set; }
 
@@ -18,13 +17,6 @@ namespace VisitorLog_PBFD.Data // Ensure this namespace matches your project's f
         {
             SeedNameType(modelBuilder);
             modelBuilder.Entity<Location>().Property(l => l.Id).ValueGeneratedNever(); // Disable auto-generation for Id       
-            modelBuilder.Entity<ContinentRoot>().Property(l => l.PersonId).ValueGeneratedNever(); // Disable auto-generation for Id       
-
-            // Configure the one-to-one foreign key relationship
-            modelBuilder.Entity<ContinentRoot>()
-                .HasOne(cr => cr.Person)
-                .WithOne(p => p.ContinentRoot)
-                .HasForeignKey<ContinentRoot>(cr => cr.PersonId);
 
             modelBuilder.Entity<Report>(entity =>
             {

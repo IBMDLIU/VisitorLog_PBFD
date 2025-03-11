@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using System.Numerics;
 using VisitorLog_PBFD.Data;
+using VisitorLog_PBFD.ViewModels;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace VisitorLog_PBFD.Services
 {
@@ -9,9 +11,10 @@ namespace VisitorLog_PBFD.Services
     {
         private readonly ApplicationDbContext _context;
         private int _personId;
-        private Dictionary<string, List<string>> _columnCache = new();
-        private Dictionary<string, List<ChildViewModel>> _childrenCache = new();
-        private Dictionary<string, Dictionary<string, object>> _columnValuesCache = new();
+        private Dictionary<string, List<string>> _tableColumnCache = new();
+        private Dictionary<string, List<NodeViewModel>> _hierarchyPathChildrenCache = new();
+        private Dictionary<string, NodeViewModel> _hierarchyPathSingleNodeCache = new();
+        private Dictionary<string, Dictionary<string, object>> _tableColumnBitmapCache = new();
 
         // Constructor: Initializes the processor with database context and person ID
         public LocationReportService(ApplicationDbContext context)
@@ -28,14 +31,13 @@ namespace VisitorLog_PBFD.Services
             var processingQueue = new Queue<ProcessingItem>();
 
             // Initialize the queue with root items
-            processingQueue.Enqueue(new ProcessingItem("ContinentRoots", ""));
-            processingQueue.Enqueue(new ProcessingItem("Continent", ""));
+            processingQueue.Enqueue(new ProcessingItem("ContinentGrandparent", ""));
 
             // Process items iteratively
             while (processingQueue.Count > 0)
             {
-                var currentItem = processingQueue.Dequeue();
-                ProcessItemAsync(currentItem, processingQueue, paths);
+                var currentTable = processingQueue.Dequeue();
+                ProcessItemAsync(currentTable, processingQueue, paths);
             }
 
             return paths;
@@ -48,7 +50,7 @@ namespace VisitorLog_PBFD.Services
             await connection.OpenAsync();
 
             await CacheColumnMetadataAsync((SqlConnection)connection);
-            await CacheChildrenAsync((SqlConnection)connection); // Hierarchy implementation
+            await CacheNodeHierachyPath((SqlConnection)connection); // Hierarchy implementation
             await CacheColumnValuesAsync((SqlConnection)connection);
         }
 
@@ -73,15 +75,15 @@ namespace VisitorLog_PBFD.Services
                 var column = reader.GetString(1);
 
                 // Cache column names for each table
-                if (!_columnCache.ContainsKey(table))
-                    _columnCache[table] = new List<string>();
+                if (!_tableColumnCache.ContainsKey(table))
+                    _tableColumnCache[table] = new List<string>();
 
-                _columnCache[table].Add(column);
+                _tableColumnCache[table].Add(column);
             }
         }
 
         // Caches children nodes using a recursive CTE to build a hierarchy
-        private async Task CacheChildrenAsync(SqlConnection connection)
+        private async Task CacheNodeHierachyPath(SqlConnection connection)
         {
             var query = @"
                 WITH RecursiveCTE AS (
@@ -92,7 +94,7 @@ namespace VisitorLog_PBFD.Services
                         ChildId,
                         CAST(Name AS NVARCHAR(MAX)) AS HierarchyPath,
                         CAST(NULL AS NVARCHAR(MAX)) AS ParentName,
-                        0 AS Level
+                        Level
                     FROM Locations
                     WHERE ParentId IS NULL
 
@@ -105,48 +107,84 @@ namespace VisitorLog_PBFD.Services
                         l.ChildId,
                         CAST(r.HierarchyPath + ' > ' + l.Name AS NVARCHAR(MAX)),
                         r.Name AS ParentName,
-                        r.Level + 1
+                        l.Level
                     FROM Locations l
                     INNER JOIN RecursiveCTE r ON l.ParentId = r.Id
                 )
                 SELECT 
-                    COALESCE(ParentName, 'ContinentRoots') AS ParentKey,
+                    --COALESCE(Name, 'ContinentGrandparent') AS Key,
                     Id,
                     ChildId,
                     Name,
                     ParentName,
-                    HierarchyPath
+                    HierarchyPath,
+                    Level
                 FROM RecursiveCTE
                 ORDER BY Level, HierarchyPath";
 
             await using var command = new SqlCommand(query, connection);
-            using var reader = await command.ExecuteReaderAsync();
+            await BuildHierarchyPathSingleNodeCache(command);
 
+            //if level is greater than 5, then build a cache to holder the leaf nodes.
+            await BuildHierarchyPathChildrenCache(command);
+
+        }
+
+        private async Task BuildHierarchyPathSingleNodeCache(SqlCommand command)
+        {
+            using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                var parentKey = reader.GetString(0);
-                var child = new ChildViewModel(
-                    Id: reader.GetInt32(1),
-                    ChildId: reader.GetInt32(2),
-                    Name: reader.GetString(3),
-                    ParentName: reader.IsDBNull(4) ? "ContinentRoots" : reader.GetString(4),
-                    HierarchyPath: reader.GetString(5)
+                var key = reader.GetString(2) ?? "ContinentParent";
+                var node = new NodeViewModel(
+                    Id: reader.GetInt32(0),
+                    ChildId: reader.GetInt32(1),
+                    Name: reader.GetString(2),
+                    ParentName: reader.IsDBNull(3) ? "ContinentGrandparent" : reader.GetString(3),
+                    HierarchyPath: reader.GetString(4),
+                    Level: reader.GetInt32(5)
+                );
+
+                // Cache node by their name
+                if (!_hierarchyPathSingleNodeCache.ContainsKey(key))
+                    _hierarchyPathSingleNodeCache[key] = node;
+            }
+        }
+
+        private async Task BuildHierarchyPathChildrenCache(SqlCommand command)
+        {
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                //only need to consider the last two levels.
+                if (reader.GetInt32(5) < 6)
+                    continue;
+
+                var key = reader.GetString(3) ?? "ContinentGrandparent";
+                var child = new NodeViewModel(
+                    Id: reader.GetInt32(0),
+                    ChildId: reader.GetInt32(1),
+                    Name: reader.GetString(2),
+                    ParentName: reader.IsDBNull(3) ? "ContinentGrandparent" : reader.GetString(3),
+                    HierarchyPath: reader.GetString(4),
+                    Level: reader.GetInt32(5)
                 );
 
                 // Cache children by their parent name
-                if (!_childrenCache.ContainsKey(parentKey))
-                    _childrenCache[parentKey] = new List<ChildViewModel>();
+                if (!_hierarchyPathChildrenCache.ContainsKey(key))
+                    _hierarchyPathChildrenCache[key] = new List<NodeViewModel>();
 
-                _childrenCache[parentKey].Add(child);
+                _hierarchyPathChildrenCache[key].Add(child);
+                
             }
         }
 
         // Caches column values for each table
         private async Task CacheColumnValuesAsync(SqlConnection connection)
         {
-            foreach (var table in _columnCache.Keys)
+            foreach (var table in _tableColumnCache.Keys)
             {
-                var columns = _columnCache[table];
+                var columns = _tableColumnCache[table];
                 var query = $@"
                     SELECT {string.Join(", ", columns.Select(c => $"[{c}]"))}
                     FROM [{table}]
@@ -157,11 +195,11 @@ namespace VisitorLog_PBFD.Services
 
                 if (await reader.ReadAsync())
                 {
-                    _columnValuesCache[table] = new Dictionary<string, object>();
+                    _tableColumnBitmapCache[table] = new Dictionary<string, object>();
                     for (int i = 0; i < reader.FieldCount; i++)
                     {
                         var columnName = reader.GetName(i);
-                        _columnValuesCache[table][columnName] = reader.GetValue(i);
+                        _tableColumnBitmapCache[table][columnName] = reader.GetValue(i);
                     }
                 }
             }
@@ -170,45 +208,71 @@ namespace VisitorLog_PBFD.Services
         // Processes items from the queue, updating paths as needed
         private void ProcessItemAsync(ProcessingItem item, Queue<ProcessingItem> queue, HashSet<string> paths)
         {
-            if (!_columnCache.TryGetValue(item.TableName, out var columns))
+            if (!_tableColumnCache.TryGetValue(item.TableName, out var columns))
                 return;
 
             foreach (var column in columns)
             {
-                if (!_columnValuesCache.TryGetValue(item.TableName, out var columnValues) ||
-                    !columnValues.TryGetValue(column, out var value))
+                if (!_tableColumnBitmapCache.TryGetValue(item.TableName, out var columnValues) ||
+                    !columnValues.TryGetValue(column, out var bitmap))
                 {
                     continue;
                 }
 
-                // Determine children that match the current column's value
-                var children = GetChildrenForColumn(item.TableName, column, value);
+                //if the column contains 0, it means that no child is selected.  The path terminates here.
+                if(NodeSelectedButNotChildrenSelected(bitmap))
+                    paths.Add(_hierarchyPathSingleNodeCache[column].HierarchyPath);
+
+                //if the column contains a value, it means that child is selected. Continue to process the table having the same name as this column.
+                if (_hierarchyPathSingleNodeCache[column].Level < 6)
+                {
+                    queue.Enqueue(new ProcessingItem(column, _hierarchyPathSingleNodeCache[column].HierarchyPath));
+                    continue;
+                }
+                
+
+                // Determine children that match the current column's value.  This is for level 6 which is for counties only.  The grandparent is in the state level.
+                var children = GetLeafNodes(column, bitmap);
 
                 foreach (var child in children)
                 {
-                    // Add new paths and enqueue children for further processing
-                    if (_childrenCache.ContainsKey(child.Name))
-                    {
-                        queue.Enqueue(new ProcessingItem(child.Name, child.HierarchyPath));
-                    }
-                    else
-                    {
-                        paths.Add(child.HierarchyPath);
-                    }
+                    paths.Add(child.HierarchyPath);
                 }
             }
         }
 
-        // Finds children nodes based on a given column value
-        private IEnumerable<ChildViewModel> GetChildrenForColumn(
-            string tableName, string column, object value)
+        private bool NodeSelectedButNotChildrenSelected(object? bitmap)
         {
-            if (!_childrenCache.TryGetValue(column, out var allChildren))
+            if (bitmap is int intBitmap)
+            {
+                // Check if the integer is 0
+                return intBitmap == 0;
+            }
+            else if (bitmap is long longBitmap)
+            {
+                // Check if the long is 0
+                return longBitmap == 0L;
+            }
+            else if (bitmap is string stringBitmap)
+            {
+                // Check if the string is empty or equals "0"
+                return stringBitmap=="" || stringBitmap == "0";
+            }
+
+            // Return true if bitmap is null or an unsupported type
+            return false;
+        }
+
+        // Finds children nodes based on a given column value
+        private IEnumerable<NodeViewModel> GetLeafNodes(
+            string column, object bitmap)
+        {
+            if (!_hierarchyPathChildrenCache.TryGetValue(column, out var allChildren))
                 yield break;
 
             foreach (var child in allChildren)
             {
-                bool isMatch = value switch
+                bool isMatch = bitmap switch
                 {
                     string strValue when BigInteger.TryParse(strValue, out var bigInt)
                         => (bigInt & (BigInteger.One << child.ChildId)) != 0,
@@ -223,14 +287,14 @@ namespace VisitorLog_PBFD.Services
                     yield return child;
             }
         }
-
         // ViewModel representing a location child
-        private record ChildViewModel(
+        private record NodeViewModel(
             int Id,
             int ChildId,
             string Name,
             string ParentName,
-            string HierarchyPath
+            string HierarchyPath,
+            int Level
         );
 
         // Record for tracking items during processing

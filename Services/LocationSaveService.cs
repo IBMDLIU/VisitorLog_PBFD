@@ -37,6 +37,27 @@ namespace VisitorLog_PBFD.Services
         // Step 1: Get parent, grandparent, and child table names
         private async Task<List<LocationMappingViewModel>> GetChildParentGrandparent(string selectedLocationIds)
         {
+            if (selectedLocationIds == null || selectedLocationIds == string.Empty)
+                return await GetChildParentGrandparentWithOutParameter();
+
+            return await GetChildParentGrandparentWithParameter(selectedLocationIds);
+        }
+        private async Task<List<LocationMappingViewModel>> GetChildParentGrandparentWithOutParameter()
+        {
+            var query = @"
+                SELECT child.Id AS ChildLocationId, child.ChildId AS ChildId, child.NameTypeId, 
+                       parent.Id AS ParentId, child.Name AS ChildNode, 
+                       parent.Name AS ParentNode, grandparent.Name AS GrandparentNode
+                FROM Locations parent
+                INNER JOIN Locations grandparent ON parent.ParentId = grandparent.Id
+                LEFT OUTER JOIN Locations child ON parent.ID = child.ParentId
+                WHERE parent.Id = 1";
+
+            return await _context.ExecuteRawQueryToListAsync<LocationMappingViewModel>(query, null);
+        }
+
+        private async Task<List<LocationMappingViewModel>> GetChildParentGrandparentWithParameter(string selectedLocationIds)
+        {
             var query = @"
                 SELECT child.Id AS ChildLocationId, child.ChildId AS ChildId, child.NameTypeId, 
                        parent.Id AS ParentId, child.Name AS ChildNode, 

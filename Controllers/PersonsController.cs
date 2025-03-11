@@ -55,7 +55,7 @@ namespace VisitorLog_PBFD.Controllers
                 _context.SaveChanges();
 
                 // Redirect to the Continents page with the correct PersonId
-                return RedirectToAction("Index", "Continents", new { personId = person.PersonId });
+                return RedirectToAction("Index", "Locations", new { personId = person.PersonId, selectedLocationIds = String.Empty });
             }
 
             // If the model is invalid, redisplay the form

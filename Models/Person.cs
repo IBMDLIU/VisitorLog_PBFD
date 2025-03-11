@@ -19,8 +19,6 @@ namespace VisitorLog_PBFD.Models
         [Display(Name = "Email Address")]
         [EmailAddress(ErrorMessage = "Invalid Email Address")]
         public string? Email { get; set; }
-
-        public ContinentRoot? ContinentRoot { get; set; } // Navigation property
     }
 
 }
